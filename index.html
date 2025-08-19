@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Plinko Game with Pegs</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      padding: 20px;
+      background: #f5f5f5;
+    }
+    h1 {
+      text-align: center;
+    }
+    .board {
+      text-align: center;
+      margin-bottom: 20px;
+    }
+    .slots, .payouts {
+      font-size: 18px;
+      margin-bottom: 10px;
+    }
+    .game-controls {
+      text-align: center;
+      margin-bottom: 20px;
+    }
+    input[type="number"] {
+      padding: 5px;
+      width: 100px;
+    }
+    button {
+      padding: 5px 10px;
+      margin-left: 10px;
+    }
+    .output {
+      text-align: center;
+      font-size: 18px;
+      margin-top: 20px;
+    }
+
+    .plinko-container {
+      display: flex;
+      justify-content: center;
+      margin-bottom: 20px;
+      position: relative;
+    }
+
+    .plinko-grid {
+      position: relative;
+      width: 320px;
+      height: 320px;
+      background: #eee;
+      border: 2px solid #ccc;
+    }
+
+    .peg {
+      width: 10px;
+      height: 10px;
+      background: #555;
+      border-radius: 50%;
+      position: absolute;
+    }
+
+    .ball {
+      width: 20px;
+      height: 20px;
+      background: red;
+      border-radius: 50%;
+      position: absolute;
+      transition: top 0.2s linear, left 0.2s linear;
+      z-index: 10;
+    }
+  </style>
+</head>
+<body>
+  <h1>Plinko Game</h1>
+
+  <div class="board">
+    <div class="slots">Slots: &nbsp; 0 &nbsp; 1 &nbsp; 2 &nbsp; 3 &nbsp; 4 &nbsp; 5 &nbsp; 6</div>
+    <div class="payouts">Payouts: 0x&nbsp;&nbsp; 1x&nbsp;&nbsp; 2x&nbsp;&nbsp; 5x&nbsp;&nbsp; 2x&nbsp;&nbsp; 1x&nbsp;&nbsp; 0x</div>
+    <p>The chip bounces on pegs as it falls.</p>
+  </div>
+
+  <div class="plinko-container">
+    <div class="plinko-grid" id="plinkoGrid"></div>
+  </div>
+
+  <div class="game-controls">
+    <p>Balance: <span id="balance">1000</span> coins</p>
+    <input type="number" id="betAmount" placeholder="Enter bet amount" min="1" />
+    <button onclick="playGame()">Drop Chip</button>
+  </div>
+
+  <div class="output" id="output"></div>
+
+  <script>
+    let balance = 1000;
+    const multipliers = [0, 1, 2, 5, 2, 1, 0];
+    const grid = document.getElementById("plinkoGrid");
+    const numRows = 7;
+    const numCols = 7;
+    const cellSize = 40;
+
+    function createPegs() {
+      grid.innerHTML = '';
+
+      for (let row = 0; row < numRows; row++) {
+        for (let col = 0; col < numCols; col++) {
+          // Staggered pegs: alternate rows are offset
+          const offset = row % 2 === 0 ? 0 : cellSize / 2;
+          const peg = document.createElement("div");
+          peg.className = "peg";
+          peg.style.left = `${col * cellSize + offset}px`;
+          peg.style.top = `${row * cellSize}px`;
+          grid.appendChild(peg);
+        }
+      }
+    }
+
+    function generateBouncePath() {
+      let x = 3; // Start in middle slot
+      const path = [];
+
+      for (let row = 0; row < numRows; row++) {
+        const move = Math.random() < 0.5 ? -1 : 1;
+        x += move;
+        x = Math.max(0, Math.min(numCols - 1, x));
+        path.push({ x, y: row });
+      }
+
+      return path;
+    }
+
+    function dropBall(path) {
+      return new Promise((resolve) => {
+        const ball = document.createElement("div");
+        ball.className = "ball";
+        grid.appendChild(ball);
+
+        let step = 0;
+
+        function animate() {
+          if (step >= path.length) {
+            resolve(path[step - 1].x);
+            return;
+          }
+
+          const pos = path[step];
+          const offset = pos.y % 2 === 0 ? 0 : cellSize / 2;
+          ball.style.left = `${pos.x * cellSize + offset + 10}px`;
+          ball.style.top = `${pos.y * cellSize + 10}px`;
+
+          step++;
+          setTimeout(animate, 250);
+        }
+
+        animate();
+      });
+    }
+
+    async function playGame() {
+      const betInput = document.getElementById("betAmount");
+      const bet = parseInt(betInput.value);
+      const output = document.getElementById("output");
+
+      if (isNaN(bet) || bet <= 0) {
+        output.innerText = "Please enter a valid bet amount.";
+        return;
+      }
+      if (bet > balance) {
+        output.innerText = "You don't have enough coins.";
+        return;
+      }
+
+      createPegs();
+      const path = generateBouncePath();
+      const finalSlot = await dropBall(path);
+      const multiplier = multipliers[finalSlot];
+      const payout = bet * multiplier;
+
+      balance += payout - bet;
+      document.getElementById("balance").innerText = balance;
+
+      let message = `Ball landed in slot ${finalSlot} with multiplier ${multiplier}x.<br>`;
+      message += payout > 0 ? `You won ${payout} coins!` : "Sorry, you lost your bet.";
+
+      if (balance <= 0) {
+        message += "<br>You ran out of coins. Game over!";
+        betInput.disabled = true;
+        document.querySelector("button").disabled = true;
+      }
+
+      output.innerHTML = message;
+      betInput.value = "";
+    }
+
+    // Initial board
+    createPegs();
+  </script>
+</body>
+</html>
