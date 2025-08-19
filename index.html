@@ -2,8 +2,8 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Plinko Game with Pegs</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Plinko Game with Realistic Animation and Slot Tray</title>
   <style>
     body {
       font-family: Arial, sans-serif;
@@ -15,11 +15,11 @@
     }
     .board {
       text-align: center;
-      margin-bottom: 20px;
+      margin-bottom: 10px;
     }
     .slots, .payouts {
       font-size: 18px;
-      margin-bottom: 10px;
+      margin-bottom: 6px;
     }
     .game-controls {
       text-align: center;
@@ -32,45 +32,92 @@
     button {
       padding: 5px 10px;
       margin-left: 10px;
+      cursor: pointer;
     }
     .output {
       text-align: center;
       font-size: 18px;
       margin-top: 20px;
+      white-space: pre-line;
     }
 
+    /* Plinko container */
     .plinko-container {
-      display: flex;
-      justify-content: center;
-      margin-bottom: 20px;
+      margin: 0 auto 30px auto;
+      width: 320px;
       position: relative;
+      background: #eee;
+      border: 2px solid #ccc;
+      border-radius: 8px;
+      padding-bottom: 60px; /* for slot tray */
     }
 
+    /* Grid for pegs */
     .plinko-grid {
       position: relative;
       width: 320px;
-      height: 320px;
-      background: #eee;
-      border: 2px solid #ccc;
+      height: 280px;
     }
 
+    /* Peg styling */
     .peg {
-      width: 10px;
-      height: 10px;
+      width: 12px;
+      height: 12px;
       background: #555;
       border-radius: 50%;
       position: absolute;
+      box-shadow: 0 0 4px #222 inset;
     }
 
+    /* Ball styling */
     .ball {
       width: 20px;
       height: 20px;
       background: red;
       border-radius: 50%;
       position: absolute;
-      transition: top 0.2s linear, left 0.2s linear;
+      transition: top 0.3s ease, left 0.3s ease;
+      box-shadow: 0 3px 6px rgba(0,0,0,0.3);
       z-index: 10;
     }
+
+    /* Slot tray container */
+    .slot-tray {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      width: 320px;
+      height: 60px;
+      background: #ddd;
+      border-top: 3px solid #aaa;
+      display: flex;
+      justify-content: space-between;
+      padding: 0 10px;
+      box-sizing: border-box;
+    }
+
+    /* Each slot */
+    .slot {
+      width: 40px;
+      height: 60px;
+      border-left: 2px solid #bbb;
+      border-right: 2px solid #bbb;
+      position: relative;
+      text-align: center;
+      font-weight: bold;
+      line-height: 60px;
+      color: #333;
+      user-select: none;
+    }
+
+    /* First and last slot borders */
+    .slot:first-child {
+      border-left: none;
+    }
+    .slot:last-child {
+      border-right: none;
+    }
+
   </style>
 </head>
 <body>
@@ -84,6 +131,9 @@
 
   <div class="plinko-container">
     <div class="plinko-grid" id="plinkoGrid"></div>
+    <div class="slot-tray" id="slotTray">
+      <!-- Slots will be generated here -->
+    </div>
   </div>
 
   <div class="game-controls">
@@ -98,40 +148,55 @@
     let balance = 1000;
     const multipliers = [0, 1, 2, 5, 2, 1, 0];
     const grid = document.getElementById("plinkoGrid");
+    const tray = document.getElementById("slotTray");
     const numRows = 7;
     const numCols = 7;
     const cellSize = 40;
 
+    // Create pegs in staggered formation
     function createPegs() {
       grid.innerHTML = '';
 
       for (let row = 0; row < numRows; row++) {
         for (let col = 0; col < numCols; col++) {
-          // Staggered pegs: alternate rows are offset
           const offset = row % 2 === 0 ? 0 : cellSize / 2;
           const peg = document.createElement("div");
           peg.className = "peg";
-          peg.style.left = `${col * cellSize + offset}px`;
-          peg.style.top = `${row * cellSize}px`;
+          peg.style.left = `${col * cellSize + offset + 14}px`; // +14 to center inside cell
+          peg.style.top = `${row * cellSize + 14}px`;
           grid.appendChild(peg);
         }
       }
     }
 
+    // Create bottom slots visually
+    function createSlots() {
+      tray.innerHTML = '';
+      for (let i = 0; i < numCols; i++) {
+        const slot = document.createElement('div');
+        slot.className = 'slot';
+        slot.textContent = i; // slots 0 to 6
+        tray.appendChild(slot);
+      }
+    }
+
+    // Generate ball path bouncing left/right with boundary checks
     function generateBouncePath() {
-      let x = 3; // Start in middle slot
+      let x = 3; // start in the middle slot
       const path = [];
 
       for (let row = 0; row < numRows; row++) {
         const move = Math.random() < 0.5 ? -1 : 1;
         x += move;
-        x = Math.max(0, Math.min(numCols - 1, x));
+        if (x < 0) x = 0;
+        if (x > numCols - 1) x = numCols - 1;
         path.push({ x, y: row });
       }
 
       return path;
     }
 
+    // Animate ball smoothly along the path with bounce effect
     function dropBall(path) {
       return new Promise((resolve) => {
         const ball = document.createElement("div");
@@ -140,25 +205,33 @@
 
         let step = 0;
 
-        function animate() {
+        function animateStep() {
           if (step >= path.length) {
-            resolve(path[step - 1].x);
+            setTimeout(() => {
+              ball.remove();
+              resolve(path[step - 1].x);
+            }, 300);
             return;
           }
 
           const pos = path[step];
           const offset = pos.y % 2 === 0 ? 0 : cellSize / 2;
-          ball.style.left = `${pos.x * cellSize + offset + 10}px`;
-          ball.style.top = `${pos.y * cellSize + 10}px`;
+          const leftPos = pos.x * cellSize + offset + 10;
+          const topPos = pos.y * cellSize + 10;
+
+          // Move ball to next peg position
+          ball.style.left = `${leftPos}px`;
+          ball.style.top = `${topPos}px`;
 
           step++;
-          setTimeout(animate, 250);
+          setTimeout(animateStep, 300);
         }
 
-        animate();
+        animateStep();
       });
     }
 
+    // Game logic for betting and playing
     async function playGame() {
       const betInput = document.getElementById("betAmount");
       const bet = parseInt(betInput.value);
@@ -174,6 +247,8 @@
       }
 
       createPegs();
+      createSlots();
+
       const path = generateBouncePath();
       const finalSlot = await dropBall(path);
       const multiplier = multipliers[finalSlot];
@@ -182,21 +257,23 @@
       balance += payout - bet;
       document.getElementById("balance").innerText = balance;
 
-      let message = `Ball landed in slot ${finalSlot} with multiplier ${multiplier}x.<br>`;
+      let message = `Ball landed in slot ${finalSlot} with multiplier ${multiplier}x.\n`;
       message += payout > 0 ? `You won ${payout} coins!` : "Sorry, you lost your bet.";
 
       if (balance <= 0) {
-        message += "<br>You ran out of coins. Game over!";
+        message += "\nYou ran out of coins. Game over!";
         betInput.disabled = true;
         document.querySelector("button").disabled = true;
       }
 
-      output.innerHTML = message;
+      output.innerText = message;
       betInput.value = "";
     }
 
-    // Initial board
+    // Initialize pegs and slots on load
     createPegs();
+    createSlots();
   </script>
 </body>
 </html>
+
